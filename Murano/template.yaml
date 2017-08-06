@@ -65,8 +65,14 @@ sec_group:
                 echo </IfModule>  >> conf/httpd.conf
 
                 yum install mod_auth_openidc -y
+                yum -y install memcached
+
+
+                systemctl enable memcached
+                systemctl enable httpd.service
 
                 systemctl start httpd.service
+                systemctl start memcached
 
               params:
                 PORT: "test"
