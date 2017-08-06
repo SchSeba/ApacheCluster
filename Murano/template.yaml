@@ -1,0 +1,101 @@
+heat_template_version: 2016-10-14
+
+description: >
+  Deploy Apache Httpd Cluster.
+
+parameters:
+description: |
+  Heat template provisioning a stack a web servers,
+  a load-balancer and a floating IP mapped to the
+  load-balacing VIP.
+
+parameters:
+  image:
+    type: string
+    label: image
+    description: Image name
+    default: centos
+  flavor:
+    type: string
+    label: flavor
+    description: Flavor name
+    default: m1.medium
+
+resources:
+
+sec_group:
+    type: OS::Neutron::SecurityGroup
+    properties:
+      rules:
+      - remote_ip_prefix: 0.0.0.0/0
+        protocol: tcp
+        port_range_min: 80
+        port_range_max: 80
+
+
+  web_nodes:
+    type: OS::Heat::ResourceGroup
+    properties:
+      count: 3
+      resource_def:
+        type: OS::Nova::Server
+        properties:
+          image: { get_param: image }
+          flavor: { get_param: flavor }
+          security_groups:
+          - default
+          - { get_resource: sec_group }
+          name:
+            str_replace:
+              template: "%stackname%-%hostname%-%index%"
+              params:
+                '%stackname%': { get_param: 'OS::stack_name' }
+                '%hostname%': { get_param: servers_name_prefix }
+          user_data_format: RAW
+          user_data:
+            str_replace:
+              template: |
+                #! /bin/sh -v
+                yum install epel-release -y
+                yum install httpd -y
+                yum install mod_security -y
+                echo LoadModule security2_module modules/mod_security2.so >> conf/httpd.conf
+                echo IfModule security2_module>  >> conf/httpd.conf
+                echo Include conf.d/modsecurity.conf  >> conf/httpd.conf
+                echo </IfModule>  >> conf/httpd.conf
+
+                yum install mod_auth_openidc -y
+
+                systemctl start httpd.service
+
+              params:
+                PORT: "test"
+
+  pool:
+    type: OS::Neutron::Pool
+    properties:
+      name: mypool1
+      protocol: HTTP
+      lb_method: ROUND_ROBIN
+      subnet: web
+      vip: {"protocol_port": 80}
+  lb:
+    type: OS::Neutron::LoadBalancer
+    properties:
+      members: { get_attr: [web_nodes, refs] }
+      pool_id: { get_resource: pool }
+      protocol_port: 80
+  floatingip:
+    type: OS::Neutron::FloatingIP
+    properties:
+      fixed_ip_address: { get_attr: [pool, vip, address] }
+      floating_network: public
+      port_id: { get_attr: [pool, vip, port_id] }
+
+outputs:
+  FloatingIP:
+    description: Service public VIP
+    value: { get_attr: [floatingip, floating_ip_address] }
+  VIP:
+    description: Internal VIP
+    value: { get_attr: [pool, vip, address] }
