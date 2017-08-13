@@ -5,7 +5,7 @@ description: A Group of Load Balanced Servers
 parameters:
   app_port:
     type: number
-    default: 8080
+    default: 80
     description: Port used by the servers
   flavor:
     type: string
@@ -123,12 +123,20 @@ resources:
             OIDCMemCacheServers (ipAddr1:11211)+(ipAddr2:11211)
             EOT
 
+            cat <<EOT >> /var/www/html/index.html
+            <html>
+            <body>
+            <h1>hi</h1>
+            </body>
+            </html>
+            EOT
+
             systemctl start httpd.service
             systemctl start memcached
           params:
             PORT: { get_param: app_port }
             ipAddr1: {get_attr: [subport1, fixed_ips, 0, ip_address]}
-            ipAddr2: {get_attr: [subport1, fixed_ips, 0, ip_address]}
+            ipAddr2: {get_attr: [subport2, fixed_ips, 0, ip_address]}
 
   pool_member1:
     type: OS::Neutron::LBaaS::PoolMember
@@ -171,12 +179,20 @@ resources:
             OIDCMemCacheServers (ipAddr1:11211)+(ipAddr2:11211)
             EOT
 
+            cat <<EOT >> /var/www/html/index.html
+            <html>
+            <body>
+            <h1>hi</h1>
+            </body>
+            </html>
+            EOT
+
             systemctl start httpd.service
             systemctl start memcached
           params:
             PORT: { get_param: app_port }
             ipAddr1: {get_attr: [subport1, fixed_ips, 0, ip_address]}
-            ipAddr2: {get_attr: [subport1, fixed_ips, 0, ip_address]}
+            ipAddr2: {get_attr: [subport2, fixed_ips, 0, ip_address]}
 
   pool_member2:
     type: OS::Neutron::LBaaS::PoolMember
@@ -190,7 +206,7 @@ resources:
     type: OS::Neutron::LBaaS::HealthMonitor
     properties:
       delay: 3
-      type: HTTP
+      type: PING
       timeout: 3
       max_retries: 3
       pool: { get_resource: pool }
